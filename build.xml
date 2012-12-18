@@ -1,4 +1,4 @@
-<project name="perLucene" basedir="." default="main">
+<project name="perLucene" basedir="." default="compile">
 
     <property name="src.dir"     value="src"/>
 

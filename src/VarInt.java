@@ -36,6 +36,9 @@ public class VarInt
 
     public VarInt (byte[]buffer, int dim)
     {
+     if(buffer.length==0){
+throw new IllegalArgumentException("varint buffer is empty");
+}
         this.buffer = buffer;
         this.dim=dim;
 

@@ -24,16 +24,17 @@ package perLucene;
 import org.apache.lucene.search.ScoreDoc;
 
 
-public class JoinedDoc extends ScoreDoc
+public class JoinedDoc
 {
 
-/** points to the byte of the varint buffer that has the same unique key with that of the joined doc   */
+/* points to the byte of the varint buffer that has the same unique key with that of the joined doc   */
   public int pointer;
 
+  public float score;
 
-  public JoinedDoc (int doc, float score, int pointer)
+  public JoinedDoc (float score, int pointer)
   {
-    super (doc, score);
+    this.score=score;
     this.pointer = pointer;
   }
 

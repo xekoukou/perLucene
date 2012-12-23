@@ -1,3 +1,6 @@
 lucene-analyzers-common-4.1-SNAPSHOT.jar 
 lucene-analyzers-smartcn-4.1-SNAPSHOT.jar 
 lucene-core-4.1-SNAPSHOT.jar
+lucene-queryparser-4.1-SNAPSHOT.jar
+
+zookeeper-3.4.4.jar

@@ -20,8 +20,6 @@ package perLucene;
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Version;
 
@@ -60,18 +58,12 @@ import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.document.TextField;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NRTCachingDirectory;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.apache.lucene.document.LongDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-
+import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.SearcherFactory;
 
 import java.io.IOException;
 import java.io.File;
@@ -81,19 +73,45 @@ import java.lang.System;
 public class Server
 {
 
-    private static DirectoryReader r;
+    private static SearcherManager sm;
     private static IndexWriter w;
 //conatins all the analyzers that are to be used by IndexWriter or the query
+    //this is READ-ONLY
     private static HashMap < String, Analyzer > hAnalyzer;
 
     public static void main ()
     {
 
-        GreekAnalyzer analyzer = new GreekAnalyzer (Version.LUCENE_40);
+        try {
+            initAnalyzers ();
+            initIndexWriter ();
+            initSearcherManager ();
 
-          initAnalyzers ();
-          initIndexWriter ();
-          initIndexReader ();
+
+        }
+        finally
+        {
+            try {
+                if (sm != null) {
+                    sm.close ();
+                }
+            }
+            catch (IOException e) {
+            }
+            finally {
+                try {
+                    if (w != null) {
+                        w.close ();
+                    }
+                }
+                catch (IOException e) {
+                }
+
+                finally {
+                    System.exit (0);
+                }
+            }
+        }
     }
 
     private static void initAnalyzers ()
@@ -158,51 +176,41 @@ public class Server
             w = new IndexWriter (index, config);
         } catch (IOException e) {
             System.out.println ("Stacktrace " + e.toString ());
-            System.exit (0);
         }
+
     }
 
-    private static void addDoc (Analyzer analyzer, String language,
-                                String summary, String text,
-                                long uid) throws IOException
-    {
-        Document doc = new Document ();
-          doc.add (new TextField ("summary", summary, Field.Store.NO));
-          doc.add (new TextField ("text", text, Field.Store.NO));
-          doc.add (new LongDocValuesField ("uid", uid));
-          doc.add (new StringField ("language", language, Field.Store.NO));
-
-          w.addDocument (doc, analyzer);
-    }
 
 //must be called only if the writer is initialized
-    private static void initIndexReader ()
+    private static void initSearcherManager ()
     {
         try {
-            r = DirectoryReader.open (w, true);
+            sm = new SearcherManager (w, true, new SearcherFactory ());
         } catch (IOException e) {
             System.out.println ("Stacktrace " + e.toString ());
-            System.exit (0);
         }
 
     }
 
-    private static void updateIndexReader ()
+    private static void updateSearcherManager ()
     {
         try {
-            DirectoryReader tr = DirectoryReader.openIfChanged (r, w, true);
-            if (tr != null) {
-                r.close ();
-                r = tr;
+            while (true) {
+                try {
+                    Thread.sleep (60000);
+                }
+                catch (InterruptedException e) {
+                }
+
+                sm.maybeRefresh ();
             }
         }
         catch (IOException e) {
             System.out.println ("Stacktrace " + e.toString ());
-            System.exit (0);
         }
 
+
+
     }
-
-
 
 }

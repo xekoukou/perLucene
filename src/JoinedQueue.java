@@ -26,21 +26,20 @@ import org.apache.lucene.util.PriorityQueue;
 final class JoinedQueue extends PriorityQueue < JoinedDoc >
 {
 
-  JoinedQueue (int size, boolean prePopulate)
-  {
-    super (size, prePopulate);
-  }
+    JoinedQueue (int size, boolean prePopulate)
+    {
+        super (size, prePopulate);
+    }
 
 
-   @Override protected JoinedDoc getSentinelObject ()
-  {
-    return new JoinedDoc (Float.NEGATIVE_INFINITY, -1);
-  }
+     @Override protected JoinedDoc getSentinelObject ()
+    {
+        return new JoinedDoc (Float.NEGATIVE_INFINITY, -1);
+    }
 
-  @Override protected final boolean lessThan (JoinedDoc hitA, JoinedDoc hitB)
-  {
-      return hitA.score < hitB.score;
-  }
+    @Override protected final boolean lessThan (JoinedDoc hitA, JoinedDoc hitB) {
+        return hitA.score < hitB.score;
+    }
 
 
 }

@@ -28,15 +28,15 @@ public class JoinedDoc
 {
 
 /* points to the byte of the varint buffer that has the same unique key with that of the joined doc   */
-  public int pointer;
+    public int pointer;
 
-  public float score;
+    public float score;
 
-  public JoinedDoc (float score, int pointer)
-  {
-    this.score=score;
-    this.pointer = pointer;
-  }
+    public JoinedDoc (float score, int pointer)
+    {
+        this.score = score;
+        this.pointer = pointer;
+    }
 
 
 }

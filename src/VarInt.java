@@ -36,11 +36,11 @@ public class VarInt
 
     public VarInt (byte[]buffer, int dim)
     {
-     if(buffer.length==0){
-throw new IllegalArgumentException("varint buffer is empty");
-}
+        if (buffer.length == 0) {
+            throw new IllegalArgumentException ("varint buffer is empty");
+        }
         this.buffer = buffer;
-        this.dim=dim;
+        this.dim = dim;
 
     }
 /*returns -1 on error */
@@ -66,7 +66,7 @@ throw new IllegalArgumentException("varint buffer is empty");
     {
         int end = buffer.length;
         long result;
-        int min_bracket=20 * 2 + 2 * dim + 1;
+        int min_bracket = 20 * 2 + 2 * dim + 1;
 
         while (end - lastPosition > min_bracket) {
 

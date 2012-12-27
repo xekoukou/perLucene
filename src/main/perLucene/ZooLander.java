@@ -1,5 +1,6 @@
 package perLucene;
 
+
 /*
     Copyright contributors as noted in the AUTHORS file.
                 
@@ -20,23 +21,45 @@ package perLucene;
 */
 
 
+import java.io.FileReader;
+import org.apache.zookeeper.ZooKeeper;
 
-import org.apache.lucene.search.ScoreDoc;
+import java.io.FileNotFoundException;
 
 
-public class JoinedDoc
-{
+class ZooLander{
 
-/* points to the byte of the varint buffer that has the same unique key with that of the joined doc   */
-    public int pointer;
 
-    public float score;
+ZooLander(){
 
-    public JoinedDoc (float score, int pointer)
-    {
-        this.score = score;
-        this.pointer = pointer;
-    }
 
 
 }
+
+public String readLocalConfig(){
+
+FileReader config;
+
+try{
+config=new FileReader("./config");
+
+char[] buffer=new char[1000];
+
+while((-1)!=config.read(buffer)){};
+
+return new String(buffer);
+
+
+
+}catch(Exception e){
+System.out.println("local configuration not found or there was an error");
+System.exit(-1);
+}
+
+return "";
+}
+
+
+
+}
+

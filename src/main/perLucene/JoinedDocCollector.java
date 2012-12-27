@@ -26,7 +26,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocValues.Source;
 import org.apache.lucene.search.*;
 
-public class JoinedDocCollector extends Collector
+class JoinedDocCollector extends Collector
 {
 
     // Assumes docs are scored in order.

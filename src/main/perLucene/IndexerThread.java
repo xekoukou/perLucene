@@ -36,7 +36,7 @@ import java.io.IOException;
 
 
 
-public class IndexerThread implements Runnable
+class IndexerThread implements Runnable
 {
 
     private IndexWriter w;

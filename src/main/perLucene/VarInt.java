@@ -22,7 +22,7 @@ package perLucene;
 
 
 
-public class VarInt
+class VarInt
 {
 
     private byte[] buffer;

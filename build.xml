@@ -1,31 +1,86 @@
 <project name="perLucene" basedir="." default="compile">
 
-    <property name="src.dir"     value="src"/>
+    <property name="srcmain.dir"     value="src/main"/>
+    <property name="srctests.dir"     value="src/tests"/>
 
     <property name="build.dir"   value="build"/>
     <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="main.dir" value="${classes.dir}/main"/>
+    <property name="tests.dir" value="${classes.dir}/tests"/>
     <property name="jar.dir"     value="${build.dir}/jar"/>
     <property name="lib.dir"     value="lib"/>
-    <path id="classpath">
+ 
+   <path id="classpath">
         <fileset dir="${lib.dir}" includes="**/*.jar"/>
     </path>
 
+      <path id="testclasses">
+        <fileset dir="${lib.dir}" includes="**/*.jar"/>
+        <path location="${jar.dir}/${ant.project.name}.jar"/> 
+    </path>
+
+
+
+    
     <target name="clean">
         <delete dir="${build.dir}"/>
     </target>
 
+
+
+
     <target name="compile">
-        <mkdir dir="${classes.dir}"/>
-        <javac srcdir="${src.dir}" destdir="${classes.dir}" classpathref="classpath"/>
+        <mkdir dir="${main.dir}"/>
+        <javac srcdir="${srcmain.dir}" destdir="${main.dir}" classpathref="classpath"/>
     </target>
+
+
+
+
+        <target name="compile-all" depends="jar">
+        <mkdir dir="${tests.dir}"/>
+        <javac srcdir="${srctests.dir}" destdir="${tests.dir}" classpathref="testclasses"/>
+    </target>
+
+
+
+
 
     <target name="jar" depends="compile">
         <mkdir dir="${jar.dir}"/>
-        <jar destfile="${jar.dir}/${ant.project.name}.jar" basedir="${classes.dir}">
+        <jar destfile="${jar.dir}/${ant.project.name}.jar" basedir="${main.dir}">
         </jar>
     </target>
 
+
+
+
     <target name="clean-build" depends="clean,jar"/>
+
+
+
+
+    <target name="test" depends="compile-all">
+     
+<copy file="./resources/config_example" tofile="./config"/>
+
+    <junit showoutput="yes" fork="true">
+<formatter type="plain" usefile="false" />
+     <classpath>
+      <path refid="testclasses"/>
+     </classpath>
+    <classpath>
+        <path location="${tests.dir}"/>
+    </classpath>
+
+     <batchtest>
+       <fileset dir="${tests.dir}">
+        </fileset>
+      </batchtest>
+     
+</junit>
+     <delete file="./config"/>
+   </target>
 
 </project>
 

@@ -36,7 +36,7 @@ import java.io.IOException;
 import org.apache.lucene.queryparser.classic.ParseException;
 
 
-public class SearcherThread implements Runnable
+class SearcherThread implements Runnable
 {
 private SearcherManager sm;
 private HashMap < String, Analyzer > ha;

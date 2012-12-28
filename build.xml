@@ -31,7 +31,8 @@
 
     <target name="compile">
         <mkdir dir="${main.dir}"/>
-        <javac srcdir="${srcmain.dir}" destdir="${main.dir}" classpathref="classpath"/>
+        <javac srcdir="${srcmain.dir}" destdir="${main.dir}" classpathref="classpath" debug="on"
+         />
     </target>
 
 

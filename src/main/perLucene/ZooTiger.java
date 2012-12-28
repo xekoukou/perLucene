@@ -20,44 +20,58 @@ package perLucene;
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import java.io.InputStreamReader;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.BufferedReader;
 
-import java.io.FileReader;
 import org.apache.zookeeper.ZooKeeper;
 
 import java.io.FileNotFoundException;
 
 
-class ZooLander{
+class ZooTiger{
 
+private ZooKeeper zookeeper;
 
-ZooLander(){
-
+ZooTiger(){
 
 
 }
 
-public String readLocalConfig(){
+protected String[] readLocalConfig(){
 
-FileReader config;
+
+InputStream    fis;
+BufferedReader br;
+String[]  line =new String[2];
+String string;
+int iter=0;
 
 try{
-config=new FileReader("./config");
 
-char[] buffer=new char[1000];
-
-while((-1)!=config.read(buffer)){};
-
-return new String(buffer);
-
-
+fis = new FileInputStream("./config");
+br = new BufferedReader(new InputStreamReader(fis));
+while ((string = br.readLine()) != null) {
+line[iter]=string;
+iter++;
+}
 
 }catch(Exception e){
 System.out.println("local configuration not found or there was an error");
+System.out.println(e.toString());
 System.exit(-1);
 }
 
-return "";
+return line;
 }
+//requires a string of 2 size
+protected void initZookeeper(String line[]){
+
+ZooKeeper zookeeper=new ZooKeeper(line[0], Integer.parseInt(line[1]),watcher) ;
+
+}
+
 
 
 

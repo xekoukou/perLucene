@@ -42,8 +42,7 @@ class IndexerThread implements Runnable
     private IndexWriter w;
     private HashMap < String, Analyzer > ha;
 
-      IndexerThread (IndexWriter w, HashMap < String,
-                     Analyzer > hAnalyzer)
+      IndexerThread (IndexWriter w, HashMap < String, Analyzer > hAnalyzer)
     {
         this.w = w;
         this.ha = ha;
@@ -54,7 +53,7 @@ class IndexerThread implements Runnable
                          String summary, String text,
                          long uid, long date) throws IOException
     {
-        Analyzer analyzer=ha.get(language);
+        Analyzer analyzer = ha.get (language);
 
         Document doc = new Document ();
           doc.add (new TextField ("summary", summary, Field.Store.NO));

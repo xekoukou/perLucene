@@ -30,50 +30,64 @@ import org.apache.zookeeper.ZooKeeper;
 import java.io.FileNotFoundException;
 
 
-class ZooTiger{
+class ZooTiger
+{
 
-private ZooKeeper zookeeper;
+    private ZooKeeper zookeeper;
 
-ZooTiger(){
-
-
-}
-
-protected String[] readLocalConfig(){
+      ZooTiger ()
+    {
 
 
-InputStream    fis;
-BufferedReader br;
-String[]  line =new String[2];
-String string;
-int iter=0;
+    }
 
-try{
+    protected String[] readLocalConfig ()
+    {
 
-fis = new FileInputStream("./config");
-br = new BufferedReader(new InputStreamReader(fis));
-while ((string = br.readLine()) != null) {
-line[iter]=string;
-iter++;
-}
 
-}catch(Exception e){
-System.out.println("local configuration not found or there was an error");
-System.out.println(e.toString());
-System.exit(-1);
-}
+        InputStream fis;
+        BufferedReader br;
+        String[]line = new String[2];
+        String string;
+        int iter = 0;
 
-return line;
-}
+        try {
+
+            fis = new FileInputStream ("./config");
+            br = new BufferedReader (new InputStreamReader (fis));
+            while ((string = br.readLine ()) != null) {
+                line[iter] = string;
+                iter++;
+            }
+
+        }
+        catch (Exception e) {
+            System.out.
+                println ("local configuration not found or there was an error");
+            System.out.println (e.toString ());
+            System.exit (-1);
+        }
+
+        return line;
+    }
 //requires a string of 2 size
-protected void initZookeeper(String line[]){
+    protected void initZookeeper (String line[])
+    {
 
-ZooKeeper zookeeper=new ZooKeeper(line[0], Integer.parseInt(line[1]),watcher) ;
+        GlobalWatcher watcher = new GlobalWatcher ();
+        try {
+            ZooKeeper zookeeper =
+                new ZooKeeper (line[0], Integer.parseInt (line[1]), watcher);
+        } catch (Exception e) {
+            System.out.
+                println
+                ("failed to initialize the zookeeper object or there was an error");
+            System.out.println (e.toString ());
+            System.exit (-1);
+        }
+    }
+
+
+
 
 }
-
-
-
-
-}
-

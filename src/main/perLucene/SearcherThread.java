@@ -38,30 +38,36 @@ import org.apache.lucene.queryparser.classic.ParseException;
 
 class SearcherThread implements Runnable
 {
-private SearcherManager sm;
-private HashMap < String, Analyzer > ha;
+    private SearcherManager sm;
+    private HashMap < String, Analyzer > ha;
 
 
-SearcherThread(SearcherManager sm,HashMap < String, Analyzer > ha){
-this.sm=sm;
-this.ha=ha;
-}
+      SearcherThread (SearcherManager sm, HashMap < String, Analyzer > ha)
+    {
+        this.sm = sm;
+        this.ha = ha;
+    }
 
-private void search(int numHits,String language,String defField, String search,VarInt intersection) throws IOException,ParseException{
+    private void search (int numHits, String language, String defField,
+                         String search, VarInt intersection) throws IOException,
+        ParseException
+    {
 
-Analyzer analyzer=ha.get(language);
-QueryParser parser = new QueryParser(Version.LUCENE_40,defField, analyzer);
+        Analyzer analyzer = ha.get (language);
+        QueryParser parser =
+            new QueryParser (Version.LUCENE_40, defField, analyzer);
 
-JoinedDocCollector collector=new JoinedDocCollector(numHits,intersection,true);
+        JoinedDocCollector collector =
+            new JoinedDocCollector (numHits, intersection, true);
 
-IndexSearcher s=sm.acquire();
+        IndexSearcher s = sm.acquire ();
 
-Query query=parser.parse(search);
+        Query query = parser.parse (search);
 
-s.search(query,collector);
+          s.search (query, collector);
 
 
-}
+    }
 
 
      @Override public void run ()

@@ -102,7 +102,7 @@ class JoinedDocCollector extends Collector
         uidValues = context.reader ().docValues ("uid").getSource ();
     }
 
-     @Override public void setScorer (Scorer scorer) throws IOException
+    @Override public void setScorer (Scorer scorer) throws IOException
     {
         this.scorer = scorer;
     }

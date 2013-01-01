@@ -21,7 +21,16 @@ package perLucene;
 */
 
 
-import org.apache.zookeeper.ZooKeeper;
-
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.WatchedEvent;
 
 class GlobalWatcher implements Watcher
+{
+
+    @Override public void process (WatchedEvent event)
+    {
+
+
+    }
+
+}

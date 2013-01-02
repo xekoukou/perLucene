@@ -25,12 +25,12 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class ZooTigerTest extends ZooTiger{ 
+public class ConfigTest { 
 
 @Test
 public void check(){
 
-String string[]=super.readLocalConfig();
+String string[]=Config.readLocalConfig();
 
 System.out.println(string[0]);
 System.out.println(string[1]);

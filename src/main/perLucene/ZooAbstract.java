@@ -23,25 +23,23 @@ package perLucene;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.Watcher;
 
-import java.io.FileNotFoundException;
-
-
-class ZooTiger extends ZooAbstract
+class ZooAbstract
 {
 
-    ZooTiger ()
+    protected ZooKeeper zoo;
+
+//requires a string of 2 size
+    protected void initZookeeper (String line[], Watcher watcher)
     {
 
-
+        try {
+            zoo = new ZooKeeper (line[0], Integer.parseInt (line[1]), watcher);
+        } catch (Exception e)
+        {
+            System.out.println
+                ("failed to initialize the zookeeper object or there was an error");
+            System.out.println (e.toString ());
+            System.exit (-1);
+        }
     }
-
-    //requires a string of 2 size
-    protected void initZookeeper (String line[])
-    {
-
-        GlobalWatcher watcher = new GlobalWatcher ();
-        initZookeeper (line, (Watcher) watcher);
-    }
-
-
 }

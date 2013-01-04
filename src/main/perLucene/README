@@ -1,0 +1,18 @@
+Adding a server is done manually.
+
+
+I need to create a program that is a client of the zookeeper-configuration of both Tiger and Octopus. 
+
+it will update the configuraion with this new server.
+Then it will ask octopus to send the documents to lucene for indexing and 
+acknowledge that index. Octopus must have gotten the new lucene configuration 
+and have sent the document to the new server
+
+when all documents have been indexed by the new server , the program will set the new server fully operational and will ask the previous server to delete that range from its index while also updating its range to the the new range.
+
+While the new server is initialized, we ll have 2 servers with common intervals.
+
+At that time, indexing should happen at the new server and searching 
+at the old server
+
+I split this program into 2 because I need to change the zookeeper configuation then init the new lucene server and then to make the transfer

@@ -23,23 +23,49 @@ package perLucene;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.Watcher;
 
+import java.util.ArrayList;
+import org.apache.zookeeper.data.ACL;
+import org.apache.zookeeper.ZooDefs;
+
 class ZooAbstract
 {
 
     protected ZooKeeper zoo;
+    protected ArrayList acl;
 
-//requires a string of 2 size
-    protected void initZookeeper (String line[], Watcher watcher)
+      ZooAbstract ()
+    {
+        this.initACL ();
+
+    }
+    ZooAbstract (ArrayList acl)
+    {
+
+        this.acl = acl;
+
+    }
+
+    protected void initZookeeper (String zlocation, int timeout,
+                                  Watcher watcher)
     {
 
         try {
-            zoo = new ZooKeeper (line[0], Integer.parseInt (line[1]), watcher);
-        } catch (Exception e)
-        {
+            zoo = new ZooKeeper (zlocation, timeout, watcher);
+        } catch (Exception e) {
             System.out.println
                 ("failed to initialize the zookeeper object or there was an error");
             System.out.println (e.toString ());
             System.exit (-1);
         }
     }
+
+    protected void initACL ()
+    {
+
+        acl = new ArrayList < ACL > ();
+        acl.add (new ACL (ZooDefs.Perms.ALL, ZooDefs.Ids.ANYONE_ID_UNSAFE));
+
+    }
+
+
 }

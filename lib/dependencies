@@ -3,4 +3,10 @@ lucene-analyzers-smartcn-4.1-SNAPSHOT.jar
 lucene-core-4.1-SNAPSHOT.jar
 lucene-queryparser-4.1-SNAPSHOT.jar
 
-zookeeper-3.4.4.jar
+zookeeper-3.4.5.jar
+slf4j-api-1.7.2.jar
+slf4j-simple-1.7.2.jar
+
+
+//for testing
+junit-4.12-SNAPSHOT.jar

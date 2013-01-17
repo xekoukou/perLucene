@@ -32,20 +32,43 @@ import org.apache.lucene.document.Field;
 
 import java.util.HashMap;
 import java.io.IOException;
+import java.util.HashSet;
+
+import org.jeromq.ZMQ;
+import org.jeromq.ZContext;
+import org.jeromq.ZFrame;
+import org.jeromq.ZMsg;
+import org.jeromq.ZMQ.Msg;
+import org.jeromq.ZMQ.PollItem;
+import org.jeromq.ZMQ.Socket;
 
 
-
+import java.nio.ByteBuffer;
 
 class IndexerThread implements Runnable
 {
 
-    private IndexWriter w;
-    private HashMap < String, Analyzer > ha;
+    protected IndexWriter w;
+    protected HashMap < String, Analyzer > ha;
+    protected ZContext ctx;
+    protected Socket sindex;
+    protected Socket ssync;
+    protected Socket sbroker;
 
-      IndexerThread (IndexWriter w, HashMap < String, Analyzer > hAnalyzer)
+    protected String location;
+    protected int replica;      //used to set the id of the dealer socket
+
+    protected HashSet hIds;     //the ids of the replicas used by the router
+//when this replica is the leader
+
+    protected boolean isLeader;
+
+      IndexerThread (IndexWriter w, HashMap < String, Analyzer > hAnalyzer,
+                     String location, int replica)
     {
         this.w = w;
         this.ha = ha;
+        this.location = location;
     }
 
 //Add spatial search support
@@ -65,8 +88,76 @@ class IndexerThread implements Runnable
     }
 
 
-     @Override public void run ()
+    private void connect (String location)
     {
+
+//free the hashset in case you were the leader
+//this is probably unnecessary
+        hIds = null;
+
+        isLeader = false;
+
+        if (sindex == null) {
+            sindex.close ();
+        }
+        sindex = ctx.createSocket (ZMQ.DEALER);
+
+        sindex.setIdentity (ByteBuffer.allocate (4).putInt (replica).array ());
+
+        String address = "tcp://" + location + ":49000";
+
+
+        sindex.connect (address);
+
+
+
+
+
+    }
+
+
+    private void updateHIds ()
+    {
+
+
+    }
+
+    private void bind (String location)
+    {
+
+        isLeader = true;
+
+        if (sindex == null) {
+            sindex.close ();
+        }
+        sindex = ctx.createSocket (ZMQ.ROUTER);
+
+        String address = "tcp://" + location + ":49000";
+
+
+        sindex.bind (address);
+
+
+
+
+
+    }
+
+    private void init ()
+    {
+        sbroker = ctx.createSocket (ZMQ.DEALER);
+
+        String address = "tcp://127.0.0.1:49002";
+        sbroker.bind (address);
+
+
+
+    }
+
+    @Override public void run ()
+    {
+        ctx = new ZContext ();
+        init ();
 
 
     }

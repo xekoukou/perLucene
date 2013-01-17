@@ -70,6 +70,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.lang.System;
 
+//TODO should I call this class abstract since it should not be initialized
 public class Server
 {
 
@@ -77,7 +78,9 @@ public class Server
     private static IndexWriter w;
 //conatins all the analyzers that are to be used by IndexWriter or the query
     //this is READ-ONLY
-    private static HashMap < String, Analyzer > hAnalyzer;
+    private static HashMap < String, Analyzer > ha;
+
+    private static ZooTiger tiger;
 
     public static void main ()
     {
@@ -87,10 +90,30 @@ public class Server
             initIndexWriter ();
             initSearcherManager ();
 
+            String[] line = Config.readLocalConfig ();
+            int nSearchThreads = Integer.parseInt (line[5]);
+
+
+//Init the Zookeeper client
+              tiger = new ZooTiger ();
+
+            String location = tiger.getConfig ();
+
+//Init the threads
+            for (int i = 0; i < nSearchThreads; i++)
+            {
+                (new Thread (new SearcherThread (sm, ha, location))).start ();
+            }
+              (new
+               Thread (new
+                       IndexerThread (w, ha, location,
+                                      Integer.parseInt (line[4])))).start ();
+
+
+            tiger.goOnline ();
 
         }
-        finally
-        {
+        finally {
             try {
                 if (sm != null) {
                     sm.close ();
@@ -117,37 +140,37 @@ public class Server
     private static void initAnalyzers ()
     {
 
-        hAnalyzer.put ("ar", new ArabicAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("el", new GreekAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("bg", new BulgarianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("br", new BrazilianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("ca", new CatalanAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("cz", new CzechAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("da", new DanishAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("de", new GermanAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("en", new EnglishAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("es", new SpanishAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("eu", new BasqueAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("fa", new PersianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("fi", new FinnishAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("fr", new FrenchAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("ga", new IrishAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("gl", new GalicianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("hi", new HindiAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("hu", new HungarianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("hy", new ArmenianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("id", new IndonesianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("it", new ItalianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("lv", new LatvianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("nl", new DutchAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("no", new NorwegianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("pt", new PortugueseAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("ro", new RomanianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("ru", new RussianAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("sv", new SwedishAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("th", new ThaiAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("tr", new TurkishAnalyzer (Version.LUCENE_40));
-        hAnalyzer.put ("cn", new SmartChineseAnalyzer (Version.LUCENE_40));
+        ha.put ("ar", new ArabicAnalyzer (Version.LUCENE_40));
+        ha.put ("el", new GreekAnalyzer (Version.LUCENE_40));
+        ha.put ("bg", new BulgarianAnalyzer (Version.LUCENE_40));
+        ha.put ("br", new BrazilianAnalyzer (Version.LUCENE_40));
+        ha.put ("ca", new CatalanAnalyzer (Version.LUCENE_40));
+        ha.put ("cz", new CzechAnalyzer (Version.LUCENE_40));
+        ha.put ("da", new DanishAnalyzer (Version.LUCENE_40));
+        ha.put ("de", new GermanAnalyzer (Version.LUCENE_40));
+        ha.put ("en", new EnglishAnalyzer (Version.LUCENE_40));
+        ha.put ("es", new SpanishAnalyzer (Version.LUCENE_40));
+        ha.put ("eu", new BasqueAnalyzer (Version.LUCENE_40));
+        ha.put ("fa", new PersianAnalyzer (Version.LUCENE_40));
+        ha.put ("fi", new FinnishAnalyzer (Version.LUCENE_40));
+        ha.put ("fr", new FrenchAnalyzer (Version.LUCENE_40));
+        ha.put ("ga", new IrishAnalyzer (Version.LUCENE_40));
+        ha.put ("gl", new GalicianAnalyzer (Version.LUCENE_40));
+        ha.put ("hi", new HindiAnalyzer (Version.LUCENE_40));
+        ha.put ("hu", new HungarianAnalyzer (Version.LUCENE_40));
+        ha.put ("hy", new ArmenianAnalyzer (Version.LUCENE_40));
+        ha.put ("id", new IndonesianAnalyzer (Version.LUCENE_40));
+        ha.put ("it", new ItalianAnalyzer (Version.LUCENE_40));
+        ha.put ("lv", new LatvianAnalyzer (Version.LUCENE_40));
+        ha.put ("nl", new DutchAnalyzer (Version.LUCENE_40));
+        ha.put ("no", new NorwegianAnalyzer (Version.LUCENE_40));
+        ha.put ("pt", new PortugueseAnalyzer (Version.LUCENE_40));
+        ha.put ("ro", new RomanianAnalyzer (Version.LUCENE_40));
+        ha.put ("ru", new RussianAnalyzer (Version.LUCENE_40));
+        ha.put ("sv", new SwedishAnalyzer (Version.LUCENE_40));
+        ha.put ("th", new ThaiAnalyzer (Version.LUCENE_40));
+        ha.put ("tr", new TurkishAnalyzer (Version.LUCENE_40));
+        ha.put ("cn", new SmartChineseAnalyzer (Version.LUCENE_40));
 
     }
 
@@ -192,18 +215,14 @@ public class Server
 
     }
 
+
+//TODO fix this, sleep cannot really happen
+
     private static void updateSearcherManager ()
     {
         try {
-            while (true) {
-                try {
-                    Thread.sleep (60000);
-                }
-                catch (InterruptedException e) {
-                }
 
-                sm.maybeRefresh ();
-            }
+            sm.maybeRefresh ();
         }
         catch (IOException e) {
             System.out.println ("Stacktrace " + e.toString ());
@@ -212,5 +231,6 @@ public class Server
 
 
     }
+
 
 }

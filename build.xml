@@ -12,10 +12,12 @@
  
    <path id="classpath">
         <fileset dir="${lib.dir}" includes="**/*.jar"/>
+        <path location="/usr/local/share/java/zmq.jar"/> 
     </path>
 
       <path id="testclasses">
         <fileset dir="${lib.dir}" includes="**/*.jar"/>
+        <path location="/usr/local/share/java/zmq.jar"/> 
         <path location="${jar.dir}/${ant.project.name}.jar"/> 
     </path>
 

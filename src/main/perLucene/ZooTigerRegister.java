@@ -213,7 +213,7 @@ public class ZooTigerRegister extends ZooAbstract
                         location.getBytes ("UTF-8"), acl,
                         CreateMode.PERSISTENT);
 
-            zoo.create (path + "/replicas/1/notifications",
+            zoo.create (path + "/notifications",
                         null, acl, CreateMode.PERSISTENT);
 
 //the minimum of all the max_sizes of the replicas
@@ -229,8 +229,15 @@ public class ZooTigerRegister extends ZooAbstract
 
             // update the number of servers
             zoo.setData ("/tiger/Servers",
-                         ByteBuffer.allocate (4).putInt (nServers).array (),
+                         ByteBuffer.allocate (4).putInt (nServers + 1).array (),
                          stat.getVersion ());
+
+//update the last upper bound
+            zoo.setData ("/tiger/last_upper_boundary",
+                         ByteBuffer.allocate (8).putLong (added +
+                                                          upper_boundary).array
+                         (), -1);
+
 
 
         } catch (KeeperException e) {
@@ -284,9 +291,6 @@ public class ZooTigerRegister extends ZooAbstract
                         location.getBytes ("UTF-8"), acl,
                         CreateMode.PERSISTENT);
 
-            zoo.create (path + "/replicas/" + Integer.toString (nReplica + 1) +
-                        "/notifications", null, acl, CreateMode.PERSISTENT);
-
 // update the replicas
 
             zoo.setData (path + "/replicas",
@@ -294,9 +298,6 @@ public class ZooTigerRegister extends ZooAbstract
                          stat.getVersion ());
 
 
-            zoo.create (path + "/maximum_size",
-                        ByteBuffer.allocate (4).putInt (maximum_size).array (),
-                        acl, CreateMode.PERSISTENT);
 
             int max =
                 ByteBuffer.wrap (zoo.getData (path + "/maximum_size", false,

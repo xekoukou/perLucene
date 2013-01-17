@@ -41,7 +41,7 @@ abstract class Config
 
         InputStream fis;
         BufferedReader br;
-          String[] line = new String[4];
+          String[] line = new String[5];
         String string;
         int iter = 0;
 

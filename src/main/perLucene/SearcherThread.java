@@ -36,16 +36,33 @@ import java.io.IOException;
 import org.apache.lucene.queryparser.classic.ParseException;
 
 
+import org.jeromq.ZMQ;
+import org.jeromq.ZContext;
+import org.jeromq.ZFrame;
+import org.jeromq.ZMsg;
+import org.jeromq.ZMQ.Msg;
+import org.jeromq.ZMQ.PollItem;
+import org.jeromq.ZMQ.Socket;
+
+
 class SearcherThread implements Runnable
 {
-    private SearcherManager sm;
-    private HashMap < String, Analyzer > ha;
+    protected SearcherManager sm;
+    protected HashMap < String, Analyzer > ha;
+    protected String location;
+    protected Socket ssearch;
+    protected Socket ssres;
+    protected ZContext ctx;
 
 
-      SearcherThread (SearcherManager sm, HashMap < String, Analyzer > ha)
+
+      SearcherThread (SearcherManager sm, HashMap < String, Analyzer > ha,
+                      String location)
     {
         this.sm = sm;
         this.ha = ha;
+        this.location = location;
+
     }
 
     private void search (int numHits, String language, String defField,
@@ -69,9 +86,31 @@ class SearcherThread implements Runnable
 
     }
 
-
-     @Override public void run ()
+    private void init ()
     {
+
+//bindings for search
+
+        ssearch = ctx.createSocket (ZMQ.DEALER);
+
+        String address = "tcp://" + location + ":49000";
+        ssearch.bind (address);
+
+        ssres = ctx.createSocket (ZMQ.ROUTER);
+
+        address = "tcp://" + location + ":49001";
+        ssres.bind (address);
+
+
+
+    }
+
+
+
+    @Override public void run ()
+    {
+        ctx = new ZContext ();
+        init ();
 
 
     }

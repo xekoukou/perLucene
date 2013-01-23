@@ -65,7 +65,7 @@
 
     <target name="test" depends="compile-all">
      
-<copy file="./resources/config_example" tofile="./config"/>
+<copy file="./resources/config" tofile="./config"/>
 
     <junit showoutput="yes" fork="true">
 <formatter type="plain" usefile="false" />

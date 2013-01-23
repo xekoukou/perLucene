@@ -41,8 +41,9 @@ import org.jeromq.ZMQ.Socket;
 
 
 import java.io.FileNotFoundException;
+import java.io.File;
 
-
+import java.util.List;
 
 //up        1 search
 //          2 index + search 
@@ -200,8 +201,13 @@ class ZooTiger extends ZooAbstract
 
     }
 
-//only done at the beginning, always set to 2
-    public void goOnline ()
+//only done at the beginning, initial value of up is irrelevant
+//goOnline doesnt try to become the Leader since it is assumed that 
+//the new replica is unsynced
+
+//One must manually ask the replica to become leader and it should only be done if all other replicas are down
+
+    public void goOnline (boolean becomeLeader)
     {
 
         String path =
@@ -217,13 +223,17 @@ class ZooTiger extends ZooAbstract
             //any new server is considered unsynched
 
             if (getLeader ()) {
-                if (!isLeader) {
-                    sync ();
-                    connect ();
+                assert (!isLeader);
+                sync ();
+                connect ();
+            }
+            else {
+                if (becomeLeader) {
+
+                    becomeLeader ();
+
                 }
-                else {
-                    bind ();
-                }
+
             }
 
         }
@@ -293,6 +303,12 @@ class ZooTiger extends ZooAbstract
         try {
             String path = "/tiger/Servers/" + Integer.toString (interval);
 
+//  first set state to searching only
+            zoo.setData (path + "/replicas" + Integer.toString (replica) +
+                         "/up", ByteBuffer.allocate (4).putInt (1).array (),
+                         leaderStat.getVersion ());
+
+
             zoo.setData (path + "/leader",
                          ByteBuffer.allocate (4).putInt (replica).array (),
                          leaderStat.getVersion ());
@@ -324,9 +340,9 @@ class ZooTiger extends ZooAbstract
 
         if (isLeader) {
 
+            String path = "/tiger/Servers/" + Integer.toString (interval);
 
             try {
-                String path = "/tiger/Servers/" + Integer.toString (interval);
 
                 maximum_size =
                     ByteBuffer.wrap (zoo.getData (path + "/maximum_size",
@@ -354,11 +370,89 @@ class ZooTiger extends ZooAbstract
 
 
 
-//TODO get which other replicas are online
+// get which other replicas are online
+
+            findReplicas ();
+
+            //TODO inform the IndexThread to bind and softSync
+
+
+//then set state to search
+            try {
+                zoo.setData (path + "/replicas/" + Integer.toString (replica) +
+                             "/up", ByteBuffer.allocate (4).putInt (2).array (),
+                             leaderStat.getVersion ());
+
+
+            }
+            catch (KeeperException e) {
+                System.out.println
+                    ("zookeeper client exited with error code " +
+                     e.code ().toString ());
+                System.out.println (e.toString ());
+                System.exit (-1);
+            }
+            catch (Exception e) {
+                System.out.println ("zookeeper client interrupted");
+                System.out.println (e.toString ());
+                System.exit (-1);
+            }
+
 
         }
 
 
+
+
+    }
+
+//findReplicas should only be executed one at a time
+
+
+    public void findReplicas ()
+    {
+
+        String path = "/tiger/Servers/" + Integer.toString (interval);
+
+        try {
+            List < String > children =
+                zoo.getChildren (path + "/replicas",
+                                 new WatcherReplicas (this));
+
+            boolean[]online = new boolean[children.size ()];
+
+            for (int i = 0; i < children.size (); i++) {
+
+
+                if (zoo.
+                    exists (path + "/replicas/" + children.get (i) + "/up",
+                            new WatcherReplicaAlive (this)) != null) {
+                    online[Integer.parseInt (children.get (i))] = true;
+
+                }
+                else {
+                    online[Integer.parseInt (children.get (i))] = false;
+
+                }
+
+            }
+
+        }
+        catch (KeeperException e) {
+            System.out.println
+                ("zookeeper client exited with error code " +
+                 e.code ().toString ());
+            System.out.println (e.toString ());
+            System.exit (-1);
+        }
+        catch (Exception e) {
+            System.out.println ("zookeeper client interrupted");
+            System.out.println (e.toString ());
+            System.exit (-1);
+        }
+
+
+//TODO update the indexerThread
 
 
     }
@@ -427,8 +521,74 @@ class ZooTiger extends ZooAbstract
     }
 
 //used only when this replica is the leader
+
+//we assume that each replica has the same index 
+//we assume that the index is in its own filesystem
+
+
+//1 need to split notification
+//2 indexing stopped notification
+
     public void notifyZoo ()
     {
+
+        assert (isLeader);
+
+        try {
+            File file = new File ("/mnt/perLucene");
+
+            int free = (int) (file.getFreeSpace () / 1024 ^ 3);
+            int total = (int) (file.getTotalSpace () / 1024 ^ 3);
+            int used = total - free;
+
+            if (used > split_size) {
+
+                String path = "/tiger/Servers/" + Integer.toString (interval);
+
+
+                if (used > maximum_size) {
+//stop indexing until the problem is fixed
+
+                    zoo.setData (path + "/" + Integer.toString (replica) +
+                                 "/up",
+                                 ByteBuffer.allocate (4).putInt (1).array (),
+                                 -1);
+
+
+                    zoo.setData (path + "/notifications",
+                                 ByteBuffer.allocate (4).putInt (2).array (),
+                                 -1);
+
+
+                }
+                else {
+
+                    zoo.setData (path + "/notifications",
+                                 ByteBuffer.allocate (4).putInt (1).array (),
+                                 -1);
+
+
+                }
+
+            }
+
+        }
+        catch (KeeperException e) {
+
+            System.out.println
+                ("zookeeper client exited with error code " +
+                 e.code ().toString ());
+            System.out.println (e.toString ());
+            System.exit (-1);
+
+
+        }
+        catch (Exception e) {
+            System.out.println ("zookeeper client interrupted");
+            System.out.println (e.toString ());
+            System.exit (-1);
+        }
+
 
 
 

@@ -18,9 +18,9 @@ class WatcherLeaderAlive implements Watcher
     public void process (WatchedEvent e)
     {
 //there are remnant watchers on old leaders
-        if (e.getPath ().
-            equals ("/tiger/servers/" + Integer.toString (tiger.interval) +
-                    "/" + Integer.toString (tiger.leader) + "/up")) {
+        if (e.getPath ().equals ("/tiger/servers/" +
+                                 Integer.toString (tiger.interval) + "/" +
+                                 Integer.toString (tiger.leader) + "/up")) {
             if (e.getType ().equals (Watcher.Event.EventType.NodeDeleted)) {
 
                 assert (!tiger.isLeader ());

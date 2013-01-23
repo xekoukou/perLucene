@@ -82,57 +82,63 @@ public class Server
 
     private static ZooTiger tiger;
 
-    public static void main ()
+    public static void main (String[]args)
     {
+        boolean becomeLeader = false;
+
+        if (args.length == 1) {
+            if (args[0].equals ("becomeLeader")) {
+                becomeLeader = true;
+
+            }
+            else
+            {
+                System.out.println ("only option : becomeLeader");
+
+                System.exit (0);
+
+            }
+
+        }
 
         try {
             initAnalyzers ();
             initIndexWriter ();
             initSearcherManager ();
 
-            String[] line = Config.readLocalConfig ();
+            String[]line = Config.readLocalConfig ();
             int nSearchThreads = Integer.parseInt (line[5]);
 
 
 //Init the Zookeeper client
-              tiger = new ZooTiger ();
+            tiger = new ZooTiger ();
 
             String location = tiger.getConfig ();
 
 //Init the threads
-            for (int i = 0; i < nSearchThreads; i++)
-            {
+            for (int i = 0; i < nSearchThreads; i++) {
                 (new Thread (new SearcherThread (sm, ha, location))).start ();
             }
-              (new
-               Thread (new
-                       IndexerThread (w, ha, location,
-                                      Integer.parseInt (line[4])))).start ();
+            (new
+             Thread (new
+                     IndexerThread (w, ha, location,
+                                    Integer.parseInt (line[4])))).start ();
 
 
-            tiger.goOnline ();
+            tiger.goOnline (becomeLeader);
 
         }
         finally {
             try {
-                if (sm != null) {
-                    sm.close ();
+                if (w != null) {
+                    w.close ();
                 }
             }
             catch (IOException e) {
             }
-            finally {
-                try {
-                    if (w != null) {
-                        w.close ();
-                    }
-                }
-                catch (IOException e) {
-                }
 
-                finally {
-                    System.exit (0);
-                }
+            finally {
+                System.exit (-1);
             }
         }
     }
@@ -178,7 +184,7 @@ public class Server
     {
 
         try {
-            Directory dir = new MMapDirectory (new File ("/mnt/index"));
+            Directory dir = new MMapDirectory (new File ("/mnt/perLucene"));
 
             //FSDirectory.setMaxMergeWriteMBPerSec. 
             //use this if merges interfere with the search
@@ -215,8 +221,7 @@ public class Server
 
     }
 
-
-//TODO fix this, sleep cannot really happen
+//these 2 must me done every few minutes
 
     private static void updateSearcherManager ()
     {
@@ -230,6 +235,12 @@ public class Server
 
 
 
+    }
+
+    private static void notifyZoo ()
+    {
+
+        tiger.notifyZoo ();
     }
 
 

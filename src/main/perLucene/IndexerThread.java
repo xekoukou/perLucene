@@ -45,6 +45,11 @@ import org.jeromq.ZMQ.Socket;
 
 import java.nio.ByteBuffer;
 
+
+//Each index replica sends the last id<->gdid that it has indexed
+//when it commits
+
+
 class IndexerThread implements Runnable
 {
 
@@ -52,6 +57,7 @@ class IndexerThread implements Runnable
     protected HashMap < String, Analyzer > ha;
     protected ZContext ctx;
     protected Socket sindex;
+    protected Socket scommands;
     protected Socket ssync;
     protected Socket sbroker;
 
@@ -111,6 +117,17 @@ class IndexerThread implements Runnable
 
 
 
+        if (scommands == null) {
+            scommands.close ();
+        }
+        scommands = ctx.createSocket (ZMQ.DEALER);
+
+        scommands.setIdentity (ByteBuffer.allocate (4).putInt (replica).array ());
+
+        address = "tcp://" + location + ":49003";
+
+
+        scommands.connect (address);
 
 
     }
@@ -121,6 +138,20 @@ class IndexerThread implements Runnable
 
 
     }
+
+
+    private void softSync ()
+    {
+
+
+    }
+
+    private void Sync ()
+    {
+
+
+    }
+
 
     private void bind (String location)
     {
@@ -138,6 +169,19 @@ class IndexerThread implements Runnable
         sindex.bind (address);
 
 
+        if (scommands == null) {
+            scommands.close ();
+        }
+
+        scommands = ctx.createSocket (ZMQ.ROUTER);
+
+        address = "tcp://" + location + ":49003";
+
+
+        scommands.bind (address);
+
+
+
 
 
 
@@ -153,6 +197,38 @@ class IndexerThread implements Runnable
 
 
     }
+
+
+
+
+    private void commit ()
+    {
+
+        try {
+            w.commit ();
+        }
+        catch (IOException io) {
+            System.out.println ("Error,while trying to commit..");
+            try {
+                if (w != null) {
+                    w.close ();
+                }
+            }
+            catch (IOException e) {
+            }
+
+            finally {
+                System.exit (-1);
+            }
+        }
+
+
+
+//send responces to the graph document database
+
+
+    }
+
 
     @Override public void run ()
     {

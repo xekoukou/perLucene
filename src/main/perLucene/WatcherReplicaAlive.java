@@ -1,26 +1,20 @@
 package perLucene;
 
-
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.WatchedEvent;
 
+class WatcherReplicaAlive implements Watcher {
 
-class WatcherReplicaAlive implements Watcher
-{
+	protected ZooTiger tiger;
 
-    protected ZooTiger tiger;
+	WatcherReplicaAlive(ZooTiger tiger) {
+		this.tiger = tiger;
 
-      WatcherReplicaAlive (ZooTiger tiger)
-    {
-        this.tiger = tiger;
+	}
 
-    }
-    public void process (WatchedEvent e)
-    {
+	public void process(WatchedEvent e) {
 
-   //TODO update the IndexerThread
+		// TODO update the IndexerThread
 
-
-
-    }
+	}
 }

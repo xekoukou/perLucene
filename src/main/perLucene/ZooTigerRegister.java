@@ -1,27 +1,26 @@
 package perLucene;
 
-
 /*
-    Copyright contributors as noted in the AUTHORS file.
-                
-    This file is part of PLATANOS.
+ Copyright contributors as noted in the AUTHORS file.
 
-    PLATANOS is free software; you can redistribute it and/or modify it under
-    the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation; either version 3 of the License, or
-    (at your option) any later version.
-            
-    PLATANOS is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-        
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ This file is part of PLATANOS.
+
+ PLATANOS is free software; you can redistribute it and/or modify it under
+ the terms of the GNU Affero General Public License as published by
+ the Free Software Foundation; either version 3 of the License, or
+ (at your option) any later version.
+
+ PLATANOS is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import java.nio.ByteBuffer;
-import org.apache.zookeeper.ZooKeeper;
+
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
@@ -29,317 +28,239 @@ import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.WatchedEvent;
 
-public class ZooTigerRegister extends ZooAbstract
-{
+public class ZooTigerRegister extends ZooAbstract {
 
-    public static void main (String[]args)
-    {
+	public static void main(String[] args) {
 
+		if ((args.length == 1) && args[0].equals("-h")) {
 
+			System.out
+					.println("1. -initTiger  :initialize a tiger cluster \n2. -regTiger intervalWidth location maximum_size split_size  :register a new interval/slice \n3. -repTiger intervalID location maximum_size  :create a replica of a registered tiger \n");
+			System.exit(0);
+		}
 
+		ZooTigerRegister zoo = new ZooTigerRegister();
 
-        if ((args.length == 1) && args[0].equals ("-h")) {
+		if ((args.length == 1) && args[0].equals("-initTiger")) {
+			zoo.initTiger();
 
-            System.out.println
-                ("1. -initTiger  :initialize a tiger cluster \n2. -regTiger intervalWidth location maximum_size split_size  :register a new interval/slice \n3. -repTiger intervalID location maximum_size  :create a replica of a registered tiger \n");
-            System.exit (0);
-        }
+		} else {
+			if ((args.length == 5) && args[0].equals("-regTiger")) {
 
-        ZooTigerRegister zoo = new ZooTigerRegister ();
+				try {
+					long added = Long.parseLong(args[1]);
 
-        if ((args.length == 1) && args[0].equals ("-initTiger")) {
-            zoo.initTiger ();
+					String location = args[2];
+					int maximum_size = Integer.parseInt(args[3]);
+					int split_size = Integer.parseInt(args[4]);
 
-        }
-        else {
-            if ((args.length == 5) && args[0].equals ("-regTiger")) {
+					zoo
+							.registerTiger(added, location, maximum_size,
+									split_size);
+				} catch (NumberFormatException n) {
+					System.out.println("Wrong format");
+					System.exit(-1);
+				}
+			} else {
 
-                try {
-                    long added = Long.parseLong (args[1]);
+				if ((args.length == 4) && args[0].equals("-repTiger")) {
 
-                    String location = args[2];
-                    int maximum_size = Integer.parseInt (args[3]);
-                    int split_size = Integer.parseInt (args[4]);
+					try {
+						int whichInterval = Integer.parseInt(args[1]);
 
-                    zoo.registerTiger (added, location, maximum_size,
-                                       split_size);
-                }
-                catch (NumberFormatException n) {
-                    System.out.println ("Wrong format");
-                    System.exit (-1);
-                }
-            }
-            else {
+						String location = args[2];
+						int maximum_size = Integer.parseInt(args[3]);
 
+						zoo.replicateTiger(whichInterval, location,
+								maximum_size);
+					}
 
-                if ((args.length == 4) && args[0].equals ("-repTiger")) {
+					catch (NumberFormatException n) {
+						System.out.println("Wrong format");
+						System.exit(-1);
+					}
+				} else {
+					System.out.println("Wrong format");
+					System.exit(-1);
 
-                    try {
-                        int whichInterval = Integer.parseInt (args[1]);
+				}
+			}
 
-                        String location = args[2];
-                        int maximum_size = Integer.parseInt (args[3]);
+		}
 
-                        zoo.replicateTiger (whichInterval, location,
-                                            maximum_size);
-                    }
+	}
 
+	ZooTigerRegister() {
 
-                    catch (NumberFormatException n) {
-                        System.out.println ("Wrong format");
-                        System.exit (-1);
-                    }
-                }
-                else {
-                    System.out.println ("Wrong format");
-                    System.exit (-1);
+		String[] line = Config.readLocalConfig();
 
+		super.initZookeeper(line[0], Integer.parseInt(line[1]), new Watcher() {
+			@Override
+			public void process(WatchedEvent e) {
+			}
+		});
 
-                }
-            }
+	}
 
+	// should not be executed concurrently many times
+	protected void initTiger() {
 
+		try {
 
-        }
+			zoo.create("/tiger", null, acl, CreateMode.PERSISTENT);
+			zoo.create("/tiger/Servers", ByteBuffer.allocate(4).putInt(0)
+					.array(), acl, CreateMode.PERSISTENT);
 
+			zoo.create("/tiger/last_upper_boundary", ByteBuffer.allocate(8)
+					.putLong(0).array(), acl, CreateMode.PERSISTENT);
 
+		} catch (KeeperException e) {
+			if (e.code().equals(KeeperException.Code.NODEEXISTS)) {
 
+				System.out.println("The Tiger has already been initialized");
 
+			} else {
 
+				System.out.println("zookeeper client exited with error code "
+						+ e.code().toString());
+				System.out.println(e.toString());
 
+			}
+			System.exit(-1);
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
+	}
 
-    }
+	// registering only one server at a time, otherwise there might be problems
+	// location should be UTF-8 encoded
 
-    ZooTigerRegister () {
+	// the maximum size is in Gigabytes
 
-        String[]line = Config.readLocalConfig ();
+	protected void registerTiger(long added, String location, int maximum_size,
+			int split_size) {
 
-        super.initZookeeper (line[0], Integer.parseInt (line[1]), new Watcher () {
-                             @Override public void process (WatchedEvent e)
-                             {
-                             }
-                             });
+		try {
+			Stat stat = new Stat();
+			int nServers = ByteBuffer.wrap(
+					zoo.getData("/tiger/Servers", false, stat)).getInt();
 
+			String path = "/tiger/Servers/" + Integer.toString(nServers + 1);
+			zoo.create(path, null, acl, CreateMode.PERSISTENT);
 
-    }
+			long upper_boundary = ByteBuffer.wrap(
+					zoo.getData("/tiger/last_upper_boundary", false, null))
+					.getLong();
+			zoo
+					.create(path + "/up", ByteBuffer.allocate(8).putLong(
+							added + upper_boundary).array(), acl,
+							CreateMode.PERSISTENT);
 
-//should not be executed concurrently many times
-    protected void initTiger ()
-    {
+			zoo.create(path + "/down", ByteBuffer.allocate(8).putLong(
+					upper_boundary).array(), acl, CreateMode.PERSISTENT);
 
-        try {
+			// assign the first replica as the leader
+			zoo.create(path + "/leader", ByteBuffer.allocate(4).putInt(1)
+					.array(), acl, CreateMode.PERSISTENT);
 
-            zoo.create ("/tiger", null, acl, CreateMode.PERSISTENT);
-            zoo.create ("/tiger/Servers",
-                        ByteBuffer.allocate (4).putInt (0).array (), acl,
-                        CreateMode.PERSISTENT);
+			zoo.create(path + "/replicas", ByteBuffer.allocate(4).putInt(1)
+					.array(), acl, CreateMode.PERSISTENT);
 
-            zoo.create ("/tiger/last_upper_boundary",
-                        ByteBuffer.allocate (8).putLong (0).array (), acl,
-                        CreateMode.PERSISTENT);
+			zoo.create(path + "/replicas/1", location.getBytes("UTF-8"), acl,
+					CreateMode.PERSISTENT);
 
-        }
-        catch (KeeperException e) {
-            if (e.code ().equals (KeeperException.Code.NODEEXISTS)) {
+			zoo.create(path + "/notifications", null, acl,
+					CreateMode.PERSISTENT);
 
-                System.out.println ("The Tiger has already been initialized");
+			// the minimum of all the max_sizes of the replicas
 
-            }
-            else {
+			zoo.create(path + "/maximum_size", ByteBuffer.allocate(4).putInt(
+					maximum_size).array(), acl, CreateMode.PERSISTENT);
 
-                System.out.println
-                    ("zookeeper client exited with error code " +
-                     e.code ().toString ());
-                System.out.println (e.toString ());
+			zoo.create(path + "/split_size", ByteBuffer.allocate(4).putInt(
+					maximum_size).array(), acl, CreateMode.PERSISTENT);
 
+			// update the number of servers
+			zoo.setData("/tiger/Servers", ByteBuffer.allocate(4).putInt(
+					nServers + 1).array(), stat.getVersion());
 
-            }
-            System.exit (-1);
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
+			// update the last upper bound
+			zoo.setData("/tiger/last_upper_boundary", ByteBuffer.allocate(8)
+					.putLong(added + upper_boundary).array(), -1);
 
-    }
+		} catch (KeeperException e) {
 
+			if (e.code().equals(KeeperException.Code.NONODE)) {
 
-//registering only one server at a time, otherwise there might be problems
-//location should be UTF-8 encoded
+				System.out.println("The Tiger has not been initialized");
 
-// the maximum size is in Gigabytes
+			} else {
 
-    protected void registerTiger (long added, String location, int maximum_size,
-                                  int split_size)
-    {
+				System.out.println("zookeeper client exited with error code "
+						+ e.code().toString());
+				System.out.println(e.toString());
 
-        try {
-            Stat stat = new Stat ();
-            int nServers =
-                ByteBuffer.wrap (zoo.getData ("/tiger/Servers", false,
-                                              stat)).getInt ();
+			}
 
-            String path = "/tiger/Servers/" + Integer.toString (nServers + 1);
-            zoo.create (path, null, acl, CreateMode.PERSISTENT);
+			System.exit(-1);
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-            long upper_boundary =
-                ByteBuffer.
-                wrap (zoo.getData ("/tiger/last_upper_boundary", false,
-                                   null)).getLong ();
-            zoo.create (path + "/up",
-                        ByteBuffer.allocate (8).putLong (added +
-                                                         upper_boundary).array
-                        (), acl, CreateMode.PERSISTENT);
+	}
 
-            zoo.create (path + "/down",
-                        ByteBuffer.allocate (8).
-                        putLong (upper_boundary).array (), acl,
-                        CreateMode.PERSISTENT);
+	protected void replicateTiger(int whichInterval, String location,
+			int maximum_size) {
 
-//assign the first replica as the leader
-            zoo.create (path + "/leader",
-                        ByteBuffer.allocate (4).putInt (1).array
-                        (), acl, CreateMode.PERSISTENT);
+		try {
+			Stat stat = new Stat();
+			String path = "/tiger/Servers/" + Integer.toString(whichInterval);
 
+			int nReplica = ByteBuffer.wrap(
+					zoo.getData(path + "/replicas", false, stat)).getInt();
 
-            zoo.create (path + "/replicas",
-                        ByteBuffer.allocate (4).putInt (1).array
-                        (), acl, CreateMode.PERSISTENT);
+			zoo.create(path + "/replicas/" + Integer.toString(nReplica + 1),
+					location.getBytes("UTF-8"), acl, CreateMode.PERSISTENT);
 
+			// update the replicas
 
-            zoo.create (path + "/replicas/1",
-                        location.getBytes ("UTF-8"), acl,
-                        CreateMode.PERSISTENT);
+			zoo.setData(path + "/replicas", ByteBuffer.allocate(4).putInt(
+					nReplica).array(), stat.getVersion());
 
-            zoo.create (path + "/notifications",
-                        null, acl, CreateMode.PERSISTENT);
+			int max = ByteBuffer.wrap(
+					zoo.getData(path + "/maximum_size", false, stat)).getInt();
+			if (maximum_size < max) {
 
-//the minimum of all the max_sizes of the replicas
+				zoo.setData(path + "/maximum_size", ByteBuffer.allocate(4)
+						.putInt(maximum_size).array(), stat.getVersion());
+			}
 
-            zoo.create (path + "/maximum_size",
-                        ByteBuffer.allocate (4).putInt (maximum_size).array (),
-                        acl, CreateMode.PERSISTENT);
+		} catch (KeeperException e) {
 
-            zoo.create (path + "/split_size",
-                        ByteBuffer.allocate (4).putInt (maximum_size).array (),
-                        acl, CreateMode.PERSISTENT);
+			if (e.code().equals(KeeperException.Code.NONODE)) {
 
+				System.out
+						.println("This Tiger interval has not been registered");
 
-            // update the number of servers
-            zoo.setData ("/tiger/Servers",
-                         ByteBuffer.allocate (4).putInt (nServers + 1).array (),
-                         stat.getVersion ());
+			} else {
 
-//update the last upper bound
-            zoo.setData ("/tiger/last_upper_boundary",
-                         ByteBuffer.allocate (8).putLong (added +
-                                                          upper_boundary).array
-                         (), -1);
+				System.out.println("zookeeper client exited with error code "
+						+ e.code().toString());
+				System.out.println(e.toString());
+				System.exit(-1);
 
+			}
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-
-        } catch (KeeperException e) {
-
-            if (e.code ().equals (KeeperException.Code.NONODE)) {
-
-                System.out.println ("The Tiger has not been initialized");
-
-            }
-            else {
-
-
-                System.out.println
-                    ("zookeeper client exited with error code " +
-                     e.code ().toString ());
-                System.out.println (e.toString ());
-
-
-            }
-
-            System.exit (-1);
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
-
-
-
-
-
-    }
-
-
-    protected void replicateTiger (int whichInterval, String location,
-                                   int maximum_size)
-    {
-
-        try {
-            Stat stat = new Stat ();
-            String path = "/tiger/Servers/" + Integer.toString (whichInterval);
-
-            int nReplica =
-                ByteBuffer.wrap (zoo.getData (path + "/replicas", false,
-                                              stat)).getInt ();
-
-
-
-            zoo.create (path + "/replicas/" + Integer.toString (nReplica + 1),
-                        location.getBytes ("UTF-8"), acl,
-                        CreateMode.PERSISTENT);
-
-// update the replicas
-
-            zoo.setData (path + "/replicas",
-                         ByteBuffer.allocate (4).putInt (nReplica).array (),
-                         stat.getVersion ());
-
-
-
-            int max =
-                ByteBuffer.wrap (zoo.getData (path + "/maximum_size", false,
-                                              stat)).getInt ();
-            if (maximum_size < max) {
-
-                zoo.setData (path + "/maximum_size",
-                             ByteBuffer.allocate (4).putInt (maximum_size).
-                             array (), stat.getVersion ());
-            }
-
-
-
-
-        }
-        catch (KeeperException e) {
-
-            if (e.code ().equals (KeeperException.Code.NONODE)) {
-
-                System.out.
-                    println ("This Tiger interval has not been registered");
-
-            }
-            else {
-
-
-                System.out.println
-                    ("zookeeper client exited with error code " +
-                     e.code ().toString ());
-                System.out.println (e.toString ());
-                System.exit (-1);
-
-
-            }
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
-
-
-    }
+	}
 
 }

@@ -1,59 +1,51 @@
 package perLucene;
 
-
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.WatchedEvent;
 
-class WatcherLeaderAlive implements Watcher
-{
+class WatcherLeaderAlive implements Watcher {
 
-    protected ZooTiger tiger;
+	protected ZooTiger tiger;
 
-      WatcherLeaderAlive (ZooTiger tiger)
-    {
-        this.tiger = tiger;
+	WatcherLeaderAlive(ZooTiger tiger) {
+		this.tiger = tiger;
 
-    }
+	}
 
-    public void process (WatchedEvent e)
-    {
-//there are remnant watchers on old leaders
-        if (e.getPath ().equals ("/tiger/servers/" +
-                                 Integer.toString (tiger.interval) + "/" +
-                                 Integer.toString (tiger.leader) + "/up")) {
-            if (e.getType ().equals (Watcher.Event.EventType.NodeDeleted)) {
+	public void process(WatchedEvent e) {
+		// there are remnant watchers on old leaders
+		if (e.getPath().equals(
+				"/tiger/servers/" + Integer.toString(tiger.interval) + "/"
+						+ Integer.toString(tiger.leader) + "/up")) {
+			if (e.getType().equals(Watcher.Event.EventType.NodeDeleted)) {
 
-                assert (!tiger.isLeader ());
+				assert (!tiger.isLeader());
 
-                tiger.stoppedWorking ();
+				tiger.stoppedWorking();
 
-                if (tiger.isSynced ()) {
-                    tiger.becomeLeader ();
+				if (tiger.isSynced()) {
+					tiger.becomeLeader();
 
-                }
-            }
+				}
+			}
 
-            if (e.getType ().equals (Watcher.Event.EventType.NodeCreated)) {
+			if (e.getType().equals(Watcher.Event.EventType.NodeCreated)) {
 
-                tiger.leaderExists (true);
+				tiger.leaderExists(true);
 
-                assert (!tiger.isLeader ());
+				assert (!tiger.isLeader());
 
-                if (tiger.isSynced () == false) {
+				if (tiger.isSynced() == false) {
 
-                    tiger.sync ();
+					tiger.sync();
 
-                }
+				}
 
+				tiger.connect();
 
-                tiger.connect ();
+			}
 
+		}
 
-            }
-
-
-
-        }
-
-    }
+	}
 }

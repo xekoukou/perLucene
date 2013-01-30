@@ -1,46 +1,34 @@
 package perLucene;
 
-
 /*
-    Copyright contributors as noted in the AUTHORS file.
-                
-    This file is part of PLATANOS.
+ Copyright contributors as noted in the AUTHORS file.
 
-    PLATANOS is free software; you can redistribute it and/or modify it under
-    the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation; either version 3 of the License, or
-    (at your option) any later version.
-            
-    PLATANOS is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-        
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ This file is part of PLATANOS.
+
+ PLATANOS is free software; you can redistribute it and/or modify it under
+ the terms of the GNU Affero General Public License as published by
+ the Free Software Foundation; either version 3 of the License, or
+ (at your option) any later version.
+
+ PLATANOS is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Date;
 
-
-import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.CreateMode;
 
-import org.jeromq.ZMQ;
-import org.jeromq.ZContext;
-import org.jeromq.ZFrame;
-import org.jeromq.ZMsg;
-import org.jeromq.ZMQ.Msg;
-import org.jeromq.ZMQ.PollItem;
-import org.jeromq.ZMQ.Socket;
-
-
-import java.io.FileNotFoundException;
 import java.io.File;
 
 import java.util.List;
@@ -53,546 +41,416 @@ import java.util.List;
 
 //the existence of up is checked by the leader as well as the gd for all replicas
 
+//the broker object should only be used by the asynchronous thread of the zookeeper
 
-//the sbroker socket should only be used by the asynchronous thread of the zookeeper
+class ZooTiger extends ZooAbstract {
 
-class ZooTiger extends ZooAbstract
-{
+	protected int interval;
+	protected int replica;
 
-    protected int interval;
-    protected int replica;
+	protected int leader;
+	protected Stat leaderStat = new Stat();
 
-    protected int leader;
-    protected Stat leaderStat = new Stat ();
+	protected boolean isLeader;
+	protected int maximum_size; // only the leader knows these
+	protected int split_size;
 
-    protected boolean isLeader;
-    protected int maximum_size; // only the leader knows these
-    protected int split_size;
+	protected boolean isSynced = false;
 
-    protected boolean isSynced = false;
+	protected boolean leaderExists;
+	protected long lastTimeWorking;
 
-    protected boolean leaderExists;
-    protected long lastTimeWorking;
+	protected Broker broker;
 
-    protected Socket sbroker;
+	// requires a string of 2 size
+	ZooTiger() {
+		String[] line = Config.readLocalConfig();
 
-    protected ZContext ctx;
+		super.initZookeeper(line[0], Integer.parseInt(line[1]), new Watcher() {
+			@Override
+			public void process(WatchedEvent e) {
+				if (!(e.getState()
+						.equals(Watcher.Event.KeeperState.SyncConnected))) {
+					System.out.println("Disconnected.. exiting");
+					System.exit(0);
+				}
+			}
+		});
 
+		interval = Integer.parseInt(line[2]);
+		replica = Integer.parseInt(line[3]);
 
-    //requires a string of 2 size
-      ZooTiger ()
-    {
-        String[]line = Config.readLocalConfig ();
+		broker = new Broker();
 
-        super.initZookeeper (line[0], Integer.parseInt (line[1]), new Watcher ()
-                             {
-                             @Override public void process (WatchedEvent e)
-                             {
-                             if (!
-                                 (e.getState ().
-                                  equals (Watcher.Event.KeeperState.
-                                          SyncConnected))) {
-                             System.out.println ("Disconnected.. exiting");
-                             System.exit (0);}
-                             }
-                             }
-        );
+	}
 
+	public void leader(int leader) {
+		this.leader = leader;
 
-        interval = Integer.parseInt (line[3]);
-        replica = Integer.parseInt (line[4]);
+	}
 
-        initBroker ();
+	public int leader() {
+		return leader;
 
+	}
 
-    }
+	public int interval() {
+		return interval;
 
-    public void leader (int leader)
-    {
-        this.leader = leader;
+	}
 
-    }
-    public int leader ()
-    {
-        return leader;
+	public boolean isLeader() {
 
-    }
+		return isLeader;
 
-    public int interval ()
-    {
-        return interval;
+	}
 
-    }
+	public boolean isSynced() {
 
+		return isSynced;
 
+	}
 
-    public boolean isLeader ()
-    {
+	public void leaderExists(boolean leaderExists) {
 
-        return isLeader;
+		this.leaderExists = leaderExists;
+	}
 
-    }
+	public void lastTimeWorking(long lastTimeWorking) {
 
+		this.lastTimeWorking = lastTimeWorking;
+	}
 
-    public boolean isSynced ()
-    {
+	// returns true if the leader is alive
+	public boolean getLeader() {
+		try {
+			String path = "/tiger/Servers/" + Integer.toString(interval);
 
-        return isSynced;
+			leader = ByteBuffer.wrap(
+					zoo.getData(path + "/leader", new WatcherLeader(this),
+							leaderStat)).getInt();
+			// check the leader is alive
+			if (zoo.exists(path + "/replicas/" + Integer.toString(leader)
+					+ "/up", new WatcherLeaderAlive(this)) != null) {
 
-    }
-    public void leaderExists (boolean leaderExits)
-    {
+				if (leader == replica) {
+					isLeader = true;
+				} else {
+					isLeader = false;
+				}
 
-        this.leaderExists = leaderExists;
-    }
+				leaderExists = true;
+				return true;
+			} else {
+				this.stoppedWorking();
+				return false;
+			}
 
-    public void lastTimeWorking (long lastTimeWorking)
-    {
+		} catch (KeeperException e) {
+			System.out.println("zookeeper client exited with error code "
+					+ e.code().toString());
+			System.out.println(e.toString());
+			System.exit(-1);
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-        this.lastTimeWorking = lastTimeWorking;
-    }
+		// default value, will never happen
+		return false;
 
-//returns true if the leader is alive
-    public boolean getLeader ()
-    {
-        try {
-            String path = "/tiger/Servers/" + Integer.toString (interval);
-
-            leader =
-                ByteBuffer.wrap (zoo.getData (path + "/leader",
-                                              new WatcherLeader (this),
-                                              leaderStat)).getInt ();
-//check the leader is alive
-            if (zoo.exists
-                (path + "/replicas/" + Integer.toString (leader) + "/up",
-                 new WatcherLeaderAlive (this)) != null) {
-
-                if (leader == replica) {
-                    isLeader = true;
-                }
-                else {
-                    isLeader = false;
-                }
+	}
 
-                leaderExists = true;
-                return true;
-            }
-            else {
-                this.stoppedWorking ();
-                return false;
-            }
+	// only done at the beginning, initial value of up is irrelevant
+	// goOnline doesnt try to become the Leader since it is assumed that
+	// the new replica is unsynced
 
-        }
-        catch (KeeperException e) {
-            System.out.println
-                ("zookeeper client exited with error code " +
-                 e.code ().toString ());
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
+	// One must manually ask the replica to become leader and it should only be
+	// done if all other replicas are down
 
-//default value, will never happen 
-        return false;
+	public void goOnline(boolean becomeLeader) {
 
-    }
+		String path = "/tiger/Servers/" + Integer.toString(interval)
+				+ "/replicas/" + Integer.toString(replica) + "/up";
 
-//only done at the beginning, initial value of up is irrelevant
-//goOnline doesnt try to become the Leader since it is assumed that 
-//the new replica is unsynced
+		try {
+			zoo.create(path, ByteBuffer.allocate(4).putInt(2).array(), acl,
+					CreateMode.EPHEMERAL);
 
-//One must manually ask the replica to become leader and it should only be done if all other replicas are down
+			// any new server is considered unsynched, so unless manually
+			// ordered, it never becomes leader
 
-    public void goOnline (boolean becomeLeader)
-    {
+			if (getLeader()) {
+				assert (!isLeader);
+				sync();
+				connect();
+			} else {
+				if (becomeLeader) {
 
-        String path =
-            "/tiger/Servers/" + Integer.toString (interval) + "/replicas/" +
-            Integer.toString (leader) + "/up";
+					becomeLeader();
 
-        try {
-            zoo.create (path,
-                        ByteBuffer.allocate (4).putInt (2).array (), acl,
-                        CreateMode.EPHEMERAL);
+				}
 
+			}
 
-            //any new server is considered unsynched
+		} catch (KeeperException e) {
+			if (e.code().equals(KeeperException.Code.NODEEXISTS)) {
 
-            if (getLeader ()) {
-                assert (!isLeader);
-                sync ();
-                connect ();
-            }
-            else {
-                if (becomeLeader) {
+				System.out
+						.println("This replica is already online, possible local configuration error");
 
-                    becomeLeader ();
+			} else {
 
-                }
+				System.out.println("zookeeper client exited with error code "
+						+ e.code().toString());
+				System.out.println(e.toString());
 
-            }
+			}
+			System.exit(-1);
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-        }
-        catch (KeeperException e) {
-            if (e.code ().equals (KeeperException.Code.NODEEXISTS)) {
+	}
 
-                System.out.println
-                    ("This replica is already online, possible local configuration error");
+	// if all replicas are offline, then wait for the last leader to go online
+	// this way we dont lose documents
 
-            }
-            else {
+	// all till bind should only be used by the asynchronous thread of zookeeper
 
-                System.out.println
-                    ("zookeeper client exited with error code " +
-                     e.code ().toString ());
-                System.out.println (e.toString ());
+	protected void sync() {
 
+	}
 
-            }
-            System.exit (-1);
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
+	public void connect() {
+		broker.connect();
 
+	}
 
-    }
+	public void bind() {
+		broker.bind();
 
+	}
 
+	public void setMode(boolean index) {
+		int value = 1;
+		if (index) {
+			value = 2;
+		}
 
-//if all replicas are offline, then wait for the last leader to go online
-//this way we dont lose documents
+		try {
 
-//all till bind should only be used by the asynchronous thread of zookeeper
+			String path = "/tiger/Servers/" + Integer.toString(interval);
 
+			zoo.setData(path + "/replicas" + Integer.toString(replica) + "/up",
+					ByteBuffer.allocate(4).putInt(value).array(), -1);
 
-//0 sync location
-//1 connect
-//2 bind location
+		} catch (KeeperException e) {
+			System.out.println("zookeeper client exited with error code "
+					+ e.code().toString());
+			System.out.println(e.toString());
+			System.exit(-1);
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-    protected void sync ()
-    {
+	}
 
+	public void becomeLeader() {
 
-    }
+		isLeader = true;
 
+		try {
+			String path = "/tiger/Servers/" + Integer.toString(interval);
 
-    public void connect ()
-    {
+			zoo.setData(path + "/leader", ByteBuffer.allocate(4)
+					.putInt(replica).array(), leaderStat.getVersion());
 
+		} catch (KeeperException e) {
+			if (e.code().equals(KeeperException.Code.BADVERSION)) {
 
-    }
+				isLeader = false;
+				// someone else became a leader
+			} else {
+				// TODO maybe clarify the possible errors
+				System.out.println("zookeeper client exited with error code "
+						+ e.code().toString());
+				System.out.println(e.toString());
+				System.exit(-1);
+			}
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-    public void bind ()
-    {
+		if (isLeader) {
 
+			String path = "/tiger/Servers/" + Integer.toString(interval);
 
-    }
+			try {
 
-    public void becomeLeader ()
-    {
+				maximum_size = ByteBuffer.wrap(
+						zoo.getData(path + "/maximum_size", new WatcherNotify(
+								this), null)).getInt();
 
-        isLeader = true;
+				split_size = ByteBuffer.wrap(
+						zoo.getData(path + "/split_size", new WatcherNotify(
+								this), null)).getInt();
 
-        try {
-            String path = "/tiger/Servers/" + Integer.toString (interval);
+			} catch (KeeperException e) {
+				System.out.println("zookeeper client exited with error code "
+						+ e.code().toString());
+				System.out.println(e.toString());
+				System.exit(-1);
+			} catch (Exception e) {
+				System.out.println("zookeeper client interrupted");
+				System.out.println(e.toString());
+				System.exit(-1);
+			}
 
-//  first set state to searching only
-            zoo.setData (path + "/replicas" + Integer.toString (replica) +
-                         "/up", ByteBuffer.allocate (4).putInt (1).array (),
-                         leaderStat.getVersion ());
+			// get which other replicas are online
 
+			findReplicas();
 
-            zoo.setData (path + "/leader",
-                         ByteBuffer.allocate (4).putInt (replica).array (),
-                         leaderStat.getVersion ());
+			// inform the IndexThread to bind
+			bind();
 
-        }
-        catch (KeeperException e) {
-            if (e.code ().equals (KeeperException.Code.BADVERSION)) {
+		}
 
-                isLeader = false;
-//someone else became a leader
-            }
-            else {
-//TODO maybe clarify the possible errors
-                System.out.println
-                    ("zookeeper client exited with error code " +
-                     e.code ().toString ());
-                System.out.println (e.toString ());
-                System.exit (-1);
-            }
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
+	}
 
+	// findReplicas should only be executed one at a time
 
+	public void findReplicas() {
 
+		String path = "/tiger/Servers/" + Integer.toString(interval);
 
-        if (isLeader) {
+		try {
+			List<String> children = zoo.getChildren(path + "/replicas",
+					new WatcherReplicas(this));
 
-            String path = "/tiger/Servers/" + Integer.toString (interval);
+			List<Integer> aliveReplicas = new ArrayList<Integer>();
 
-            try {
+			for (int i = 0; i < children.size(); i++) {
 
-                maximum_size =
-                    ByteBuffer.wrap (zoo.getData (path + "/maximum_size",
-                                                  new WatcherNotify (this),
-                                                  null)).getInt ();
+				if (zoo.exists(path + "/replicas/" + children.get(i) + "/up",
+						new WatcherReplicaAlive(this)) != null) {
+					aliveReplicas.add(Integer.parseInt(children.get(i)));
 
-                split_size =
-                    ByteBuffer.wrap (zoo.getData (path + "/split_size",
-                                                  new WatcherNotify (this),
-                                                  null)).getInt ();
+				}
 
-            }
-            catch (KeeperException e) {
-                System.out.println
-                    ("zookeeper client exited with error code " +
-                     e.code ().toString ());
-                System.out.println (e.toString ());
-                System.exit (-1);
-            }
-            catch (Exception e) {
-                System.out.println ("zookeeper client interrupted");
-                System.out.println (e.toString ());
-                System.exit (-1);
-            }
+			}
 
+			// update the indexerThread
+			broker.updateReplicas(aliveReplicas);
 
+		} catch (KeeperException e) {
+			System.out.println("zookeeper client exited with error code "
+					+ e.code().toString());
+			System.out.println(e.toString());
+			System.exit(-1);
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-// get which other replicas are online
+	}
 
-            findReplicas ();
+	public void stoppedWorking() {
 
-            //TODO inform the IndexThread to bind and softSync
+		if (leaderExists) {
+			this.leaderExists(false);
+			this.lastTimeWorking((new Date()).getTime());
+		}
 
+	}
 
-//then set state to search
-            try {
-                zoo.setData (path + "/replicas/" + Integer.toString (replica) +
-                             "/up", ByteBuffer.allocate (4).putInt (2).array (),
-                             leaderStat.getVersion ());
+	public String getConfig() {
 
+		try {
+			Stat stat = new Stat();
 
-            }
-            catch (KeeperException e) {
-                System.out.println
-                    ("zookeeper client exited with error code " +
-                     e.code ().toString ());
-                System.out.println (e.toString ());
-                System.exit (-1);
-            }
-            catch (Exception e) {
-                System.out.println ("zookeeper client interrupted");
-                System.out.println (e.toString ());
-                System.exit (-1);
-            }
+			return (new String(zoo.getData("/tiger/Servers/"
+					+ Integer.toString(interval) + "/replicas/"
+					+ Integer.toString(replica), null, stat), "UTF-8"));
 
+		} catch (KeeperException e) {
 
-        }
+			System.out
+					.println("This replica doesnt exists, or its configuration in zookeeper is corrupt");
+			System.exit(0);
 
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
+		return null;
 
+	}
 
-    }
+	// used only when this replica is the leader
 
-//findReplicas should only be executed one at a time
+	// we assume that each replica has the same index
+	// we assume that the index is in its own filesystem
 
+	// 1 need to split notification
+	// 2 indexing stopped notification
 
-    public void findReplicas ()
-    {
+	public void notifyZoo() {
 
-        String path = "/tiger/Servers/" + Integer.toString (interval);
+		assert (isLeader);
 
-        try {
-            List < String > children =
-                zoo.getChildren (path + "/replicas",
-                                 new WatcherReplicas (this));
+		try {
+			File file = new File("/mnt/perLucene");
 
-            boolean[]online = new boolean[children.size ()];
+			int free = (int) (file.getFreeSpace() / 1024 ^ 3);
+			int total = (int) (file.getTotalSpace() / 1024 ^ 3);
+			int used = total - free;
 
-            for (int i = 0; i < children.size (); i++) {
+			if (used > split_size) {
 
+				String path = "/tiger/Servers/" + Integer.toString(interval);
 
-                if (zoo.
-                    exists (path + "/replicas/" + children.get (i) + "/up",
-                            new WatcherReplicaAlive (this)) != null) {
-                    online[Integer.parseInt (children.get (i))] = true;
+				if (used > maximum_size) {
+					// stop indexing until the problem is fixed
 
-                }
-                else {
-                    online[Integer.parseInt (children.get (i))] = false;
+					zoo.setData(path + "/" + Integer.toString(replica) + "/up",
+							ByteBuffer.allocate(4).putInt(1).array(), -1);
 
-                }
+					zoo.setData(path + "/notifications", ByteBuffer.allocate(4)
+							.putInt(2).array(), -1);
 
-            }
+				} else {
 
-        }
-        catch (KeeperException e) {
-            System.out.println
-                ("zookeeper client exited with error code " +
-                 e.code ().toString ());
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
+					zoo.setData(path + "/notifications", ByteBuffer.allocate(4)
+							.putInt(1).array(), -1);
 
+				}
 
-//TODO update the indexerThread
+			}
 
+		} catch (KeeperException e) {
 
-    }
+			System.out.println("zookeeper client exited with error code "
+					+ e.code().toString());
+			System.out.println(e.toString());
+			System.exit(-1);
 
+		} catch (Exception e) {
+			System.out.println("zookeeper client interrupted");
+			System.out.println(e.toString());
+			System.exit(-1);
+		}
 
-    public void stoppedWorking ()
-    {
-
-        if (leaderExists) {
-            this.leaderExists (false);
-            this.lastTimeWorking ((new Date ()).getTime ());
-        }
-
-    }
-
-
-
-    private void initBroker ()
-    {
-
-        ctx = new ZContext ();
-
-        sbroker = ctx.createSocket (ZMQ.ROUTER);
-
-        String address = "tcp://127.0.0.1:49002";
-        sbroker.bind (address);
-
-
-    }
-
-
-    public String getConfig ()
-    {
-
-        try {
-            Stat stat = new Stat ();
-
-            return (new
-                    String (zoo.getData ("/tiger/Servers/" +
-                                         Integer.toString (interval) +
-                                         "/replicas/" +
-                                         Integer.toString (leader)
-                                         , null, stat), "UTF-8"));
-
-
-
-
-        }
-        catch (KeeperException e) {
-
-            System.out.println
-                ("This replica doesnt exists, or its configuration in zookeeper is corrupt");
-            System.exit (0);
-
-
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
-
-        return null;
-
-
-    }
-
-//used only when this replica is the leader
-
-//we assume that each replica has the same index 
-//we assume that the index is in its own filesystem
-
-
-//1 need to split notification
-//2 indexing stopped notification
-
-    public void notifyZoo ()
-    {
-
-        assert (isLeader);
-
-        try {
-            File file = new File ("/mnt/perLucene");
-
-            int free = (int) (file.getFreeSpace () / 1024 ^ 3);
-            int total = (int) (file.getTotalSpace () / 1024 ^ 3);
-            int used = total - free;
-
-            if (used > split_size) {
-
-                String path = "/tiger/Servers/" + Integer.toString (interval);
-
-
-                if (used > maximum_size) {
-//stop indexing until the problem is fixed
-
-                    zoo.setData (path + "/" + Integer.toString (replica) +
-                                 "/up",
-                                 ByteBuffer.allocate (4).putInt (1).array (),
-                                 -1);
-
-
-                    zoo.setData (path + "/notifications",
-                                 ByteBuffer.allocate (4).putInt (2).array (),
-                                 -1);
-
-
-                }
-                else {
-
-                    zoo.setData (path + "/notifications",
-                                 ByteBuffer.allocate (4).putInt (1).array (),
-                                 -1);
-
-
-                }
-
-            }
-
-        }
-        catch (KeeperException e) {
-
-            System.out.println
-                ("zookeeper client exited with error code " +
-                 e.code ().toString ());
-            System.out.println (e.toString ());
-            System.exit (-1);
-
-
-        }
-        catch (Exception e) {
-            System.out.println ("zookeeper client interrupted");
-            System.out.println (e.toString ());
-            System.exit (-1);
-        }
-
-
-
-
-    }
-
+	}
 
 }

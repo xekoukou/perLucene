@@ -124,7 +124,7 @@ public class Server {
 			for (int i = 0; i < nSearchThreads; i++) {
 				(new Thread(new SearcherThread(sm, ha, location))).start();
 			}
-			(new Thread(new IndexerThread(w, ha, location, Integer
+			(new Thread(new IndexerThread(w, sm, ha, location, Integer
 					.parseInt(line[3]), id))).start();
 
 			tiger.goOnline(becomeLeader);
@@ -138,17 +138,15 @@ public class Server {
 		} catch (Exception e) {
 			System.out.println("there has been an error");
 			System.out.println("Stacktrace " + e.toString());
-		} finally {
+
 			try {
 				if (w != null) {
 					w.close();
 				}
-			} catch (IOException e) {
+			} catch (IOException e1) {
 			}
 
-			finally {
-				System.exit(-1);
-			}
+			System.exit(-1);
 		}
 	}
 

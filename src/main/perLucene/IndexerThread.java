@@ -19,7 +19,18 @@ package perLucene;
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.document.DerefBytesDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.LongField;
@@ -29,11 +40,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 
 import java.util.HashMap;
+import java.util.List;
 import java.io.IOException;
 import java.util.HashSet;
-
-//Each index replica sends the last id<->gdid that it has indexed
-//when it commits
 
 class IndexerThread implements Runnable {
 
@@ -45,19 +54,25 @@ class IndexerThread implements Runnable {
 	protected String location;
 	protected int replica;
 
-	protected long id; // ids are incremented in big-endian unsigned integer
-						// order
+	public long id; // ids are incremented in big-endian unsigned integer
+	protected Spatial sp;
+	protected SearcherManager sm;
 
-	IndexerThread(IndexWriter w, HashMap<String, Analyzer> ha, String location,
-			int replica, long id) {
+	// order
+
+	IndexerThread(IndexWriter w, SearcherManager sm,
+			HashMap<String, Analyzer> ha, String location, int replica, long id) {
 		this.w = w;
 		this.ha = ha;
 		this.location = location;
 		this.replica = replica;
 		this.id = id;
+		this.sm = sm;
+		sp = new Spatial();
 	}
 
 	// ids are incremented in big-endian unsigned integer order
+	// used only by the leader
 	public long incrementId() {
 		Long i = id;
 		long mask = 1;
@@ -73,17 +88,107 @@ class IndexerThread implements Runnable {
 	}
 
 	// Add spatial search support
-	public void addDoc(String language, String summary, String text, long date)
-			throws IOException {
+	public boolean addDoc(String language, String summary, String text,
+			long date, String wkt, byte[] gdid, long id) {
 		Analyzer analyzer = ha.get(language);
 
 		Document doc = new Document();
 		doc.add(new TextField("summary", summary, Field.Store.NO));
 		doc.add(new TextField("text", text, Field.Store.NO));
 		doc.add(new LongDocValuesField("uid", id));
-		doc.add(new StringField("language", language, Field.Store.NO));
+		doc
+				.add(new DerefBytesDocValuesField("language", new BytesRef(
+						language)));
 		doc.add(new LongField("date", date, Field.Store.NO));
-		w.addDocument(doc, analyzer);
+		doc.add(new StoredField("gdid", gdid));
+		doc.add(new LongField("id", id, Field.Store.NO));
+		// ?? for
+		// deletions we
+		// need
+		// LongField to
+		// do search on
+		// id
+		if (sp.addFields(doc, wkt)) {
+			try {
+				w.addDocument(doc, analyzer);
+			} catch (Exception e) {
+				System.out.println("Couldnt add Doc");
+				System.out.println("Stacktrace " + e.toString());
+
+				try {
+					if (w != null) {
+						w.close();
+					}
+				} catch (IOException e1) {
+				}
+
+				System.exit(-1);
+			}
+
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	public void deleteDoc(long id) {
+		try {
+			sm.maybeRefreshBlocking();
+			IndexSearcher s = sm.acquire();
+
+			Query q = NumericRangeQuery.newLongRange("id", 1, id, id, true,
+					true);
+
+			// TODO remove assertion
+			TopDocs td = s.search(q, 1);
+			assert (td.totalHits <= 1);
+
+			w.deleteDocuments(q);
+
+			sm.release(s);
+
+		} catch (Exception e) {
+			System.out.println("Couldnt delete Doc");
+			System.out.println("Stacktrace " + e.toString());
+
+			try {
+				if (w != null) {
+					w.close();
+				}
+			} catch (IOException e1) {
+			}
+
+			System.exit(-1);
+		}
+
+	}
+
+	public void deleteDocs(long start, long end) {
+		try {
+			sm.maybeRefreshBlocking();
+			IndexSearcher s = sm.acquire();
+
+			Query q = NumericRangeQuery.newLongRange("id", 1, start, end, true,
+					true);
+
+			w.deleteDocuments(q);
+
+			sm.release(s);
+
+		} catch (Exception e) {
+			System.out.println("Couldnt delete Docs");
+			System.out.println("Stacktrace " + e.toString());
+
+			try {
+				if (w != null) {
+					w.close();
+				}
+			} catch (IOException e1) {
+			}
+
+			System.exit(-1);
+		}
+
 	}
 
 	private void softSync() {

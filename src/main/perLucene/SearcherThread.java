@@ -63,6 +63,8 @@ class SearcherThread implements Runnable {
 
 		s.search(query, collector);
 
+		// TODO
+
 	}
 
 	@Override

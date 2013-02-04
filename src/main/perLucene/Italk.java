@@ -25,14 +25,18 @@ import org.jeromq.ZFrame;
 import org.jeromq.ZMsg;
 import org.jeromq.ZMQ.PollItem;
 import org.jeromq.ZMQ.Socket;
-import java.nio.ByteBuffer;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.TreeMap;
+
+import com.sun.net.httpserver.Authenticator.Success;
 
 import java.nio.ByteBuffer;
+
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.TreeSet;
+
+import java.util.Iterator;
+
+import java.util.TreeMap;
 
 class Italk {
 
@@ -177,6 +181,7 @@ class Italk {
 		protected TreeMap<Long, Integer> tIds;
 		protected Long min;
 
+		// id to response
 		protected HashMap<Long, ZMsg> hResps;
 
 		Leader() {
@@ -234,12 +239,20 @@ class Italk {
 		}
 
 		/**
-		 * msg frames 1 gdid 
-		 * 2+ (other docfields)
+		 * msg frames 1 gdid 2+ (other docfields)
 		 * */
 		protected void index(ZMsg msg) {
 			ZFrame address = msg.unwrap();
+
+			// since we delete docs if the msg is 1, this is to protect the
+			// database from malevolence
+			if (msg.size() < 2) {
+				msg.destroy();
+				return;
+			}
+
 			ZFrame gdid = msg.first().duplicate();
+
 			long id = ithread.incrementId();
 
 			// create response and store
@@ -251,16 +264,134 @@ class Italk {
 			hResps.put(id, resp);
 
 			// send to all replicas and index yourself
-			Iterator<ZFrame> it=hIds.keySet().iterator();
-			
-			while(it.hasNext()){
-				ZMsg mrepl=msg.duplicate();
+			Iterator<ZFrame> it = hIds.keySet().iterator();
+
+			while (it.hasNext()) {
+				ZMsg mrepl = msg.duplicate();
+				mrepl.addFirst(new ZFrame(ByteBuffer.allocate(8).putLong(id)
+						.array()));
 				mrepl.wrap(it.next().duplicate());
 				mrepl.send(sindex);
 			}
-			
-			addDoc(msg);
-			
+
+			if (addDoc(msg, id)) {
+			} else {
+				failed(id);
+			}
+
+		}
+
+		// 1 means it failed
+		// 0 means it succeeded
+
+		// a msg with only the gdid means the deletion of that gdid
+		protected void failed(long id) {
+			// send failed msg to originator
+			ZMsg msg = hResps.get(id);
+
+			// maybe it has already been asked to be deleted
+
+			if (msg != null) {
+				hResps.remove(id);
+				msg.add(ByteBuffer.allocate(4).putInt(1).array());
+				msg.send(sgdb);
+			}
+			// send deletes to replicas anyway because the msg might not exist
+			// because this is a new leader
+			// ofcourse this creates duplicate deletes to be sent
+			ZMsg resp = new ZMsg();
+			resp
+					.addFirst(new ZFrame(ByteBuffer.allocate(8).putLong(id)
+							.array()));
+
+			Iterator<ZFrame> it = hIds.keySet().iterator();
+
+			while (it.hasNext()) {
+
+				ZMsg dresp = resp.duplicate();
+				dresp.wrap(it.next().duplicate());
+				dresp.send(sindex);
+			}
+			resp.destroy();
+
+		}
+
+		protected void failed(long start, long end) {
+
+			// TODO need some small optimization
+			for (long it = start; it <= end; it++) {
+				// send failed msg to originator
+				ZMsg msg = hResps.get(it);
+
+				// maybe it has already been asked to be deleted
+
+				if (msg != null) {
+					hResps.remove(it);
+					msg.add(ByteBuffer.allocate(4).putInt(1).array());
+					msg.send(sgdb);
+				}
+			}
+
+			// send deletes to replicas anyway because the msg might not exist
+			// because this is a new leader
+			// ofcourse this creates duplicate deletes to be sent
+			ZMsg resp = new ZMsg();
+			resp.add(new ZFrame(ByteBuffer.allocate(8).putLong(end).array()));
+			resp.add(new ZFrame(ByteBuffer.allocate(8).putLong(start).array()));
+
+			Iterator<ZFrame> it = hIds.keySet().iterator();
+
+			while (it.hasNext()) {
+
+				ZMsg dresp = resp.duplicate();
+				dresp.wrap(it.next().duplicate());
+				dresp.send(sindex);
+			}
+			resp.destroy();
+
+		}
+
+		protected void success(ZFrame address, long id) {
+			// send success msg to originator
+			ZMsg msg = hResps.get(id);
+
+			hResps.remove(id);
+			msg.add(ByteBuffer.allocate(4).putInt(0).array());
+			msg.send(sgdb);
+
+		}
+
+		protected void getResp(ZMsg msg) {
+
+			ZFrame address = msg.unwrap();
+
+			Iterator<ZFrame> it = msg.iterator();
+
+			long end = ByteBuffer.wrap(it.next().data()).getLong();
+			long start;
+
+			int failed = ByteBuffer.wrap(it.next().data()).getInt();
+
+			if (failed == 1) {
+
+				// in case this is a new Leader that has lost some messages
+				// update id if necessary
+				if (end > ithread.id) {
+					ithread.id = end;
+				}
+
+				if (it.hasNext()) {
+					start = ByteBuffer.wrap(it.next().data()).getLong();
+					failed(start, end);
+					ithread.deleteDocs(start, end);
+				} else {
+					failed(end);
+					ithread.deleteDoc(end);
+				}
+				address.destroy();
+			} else {
+				success(address, end);
+			}
 
 		}
 
@@ -275,13 +406,98 @@ class Italk {
 		}
 
 		protected void index(ZMsg msg) {
-        addDoc(msg);
- 		}
+			if (msg.size() < 3) {
+				deleteDocs(msg);
+			} else {
+				ZFrame frame = msg.pop();
+				long id = ByteBuffer.wrap(frame.data()).getLong();
+				frame.destroy();
+
+				long localId = ithread.incrementId();
+
+				if (id > localId) {
+					multDelResp(localId + 1, id - 1);
+				}
+				if (id >= localId) {
+
+					if (addDoc(msg, id)) {
+						sendResp(id, 0);
+					} else {
+						sendResp(id, 1);
+					}
+				} else {
+					multDelResp(id, localId);
+				}
+
+			}
+		}
+
+		// id
+		// gdid
+		// 0 success 1 failure
+		protected void sendResp(long id, int failed) {
+
+			ZMsg resp = new ZMsg();
+			resp.add(new ZFrame(ByteBuffer.allocate(8).putLong(id).array()));
+
+			resp
+					.add(new ZFrame(ByteBuffer.allocate(4).putLong(failed)
+							.array()));
+
+			resp.send(sindex);
+
+		}
+
+		protected void multDelResp(long start, long end) {
+			ZMsg resp = new ZMsg();
+			resp.addFirst(new ZFrame(ByteBuffer.allocate(8).putLong(end)
+					.array()));
+			resp.add(new ZFrame(ByteBuffer.allocate(4).putLong(1).array()));
+			resp.add(new ZFrame(ByteBuffer.allocate(8).putLong(start).array()));
+
+			resp.send(sindex);
+		}
 
 	}
-	
-	protected void addDoc(ZMsg msg){
-		
+
+	// gdid
+	// summary
+	// text
+	// wkt
+	// language
+	protected boolean addDoc(ZMsg msg, long id) {
+
+		Iterator<ZFrame> it = msg.iterator();
+		try {
+			byte[] gdid = it.next().data();
+			String sum = new String(it.next().data(), "UTF-8");
+			String text = new String(it.next().data(), "UTF-8");
+			String wkt = new String(it.next().data(), "UTF-8");
+			String language = new String(it.next().data(), "UTF-8");
+
+			long date = DateProducer.date();
+
+			msg.destroy();
+
+			return ithread.addDoc(language, sum, text, date, wkt, gdid, id);
+		} catch (Exception e) {
+		}
+		return false;
+	}
+
+	protected void deleteDocs(ZMsg msg) {
+		Iterator<ZFrame> it = msg.iterator();
+
+		long end = ByteBuffer.wrap(it.next().data()).getLong();
+		long start;
+		if (it.hasNext()) {
+			start = ByteBuffer.wrap(it.next().data()).getLong();
+			ithread.deleteDocs(start, end);
+		} else {
+
+			ithread.deleteDoc(end);
+		}
+		msg.destroy();
 	}
 
 	public void poll() {
@@ -298,6 +514,12 @@ class Italk {
 				if (items[3].isReadable()) {
 					ZMsg msg = ZMsg.recvMsg(((Leader) server).sgdb);
 					((Leader) server).index(msg);
+				}
+
+				if (items[1].isReadable()) {
+
+					ZMsg msg = ZMsg.recvMsg(sindex);
+					((Leader) server).getResp(msg);
 				}
 
 			}

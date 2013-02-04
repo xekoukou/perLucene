@@ -1,7 +1,11 @@
-lucene-analyzers-common-4.1-SNAPSHOT.jar 
-lucene-analyzers-smartcn-4.1-SNAPSHOT.jar 
-lucene-core-4.1-SNAPSHOT.jar
-lucene-queryparser-4.1-SNAPSHOT.jar
+lucene-analyzers-common-4.2-SNAPSHOT.jar 
+lucene-analyzers-smartcn-4.2-SNAPSHOT.jar 
+lucene-core-4.2-SNAPSHOT.jar
+lucene-queryparser-4.2-SNAPSHOT.jar
+lucene-spatial-4.2-SNAPSHOT.jar
+spatial4j-0.4-SNAPSHOT.jar
+jts-1.13.jar
+//maybe jtsio
 
 zookeeper-3.4.5.jar
 slf4j-api-1.7.2.jar
